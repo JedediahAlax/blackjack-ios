@@ -1,10 +1,3 @@
-//
-//  Card.swift
-//  Blackjack
-//
-//  Created by Jedediah Hernandez on 11/5/26.
-//
-
 struct Card {
     let rank: Rank
     let suit: Suit
