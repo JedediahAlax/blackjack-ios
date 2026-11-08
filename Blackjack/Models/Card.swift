@@ -3,11 +3,11 @@ struct Card {
     let suit: Suit
 }
 
-enum Suit {
+enum Suit: CaseIterable {
     case hearts, diamonds, clubs, spades
 }
 
-enum Rank {
+enum Rank: CaseIterable {
     case ace, two, three, four, five, six, seven, eight, nine, ten, jack, queen, king
     
     var points: Int {
