@@ -63,6 +63,17 @@ struct BlackjackGame {
         phase = .dealerTurn
     }
 
+    // One decision per call, hit or stand, so the view model can pause between them.
+    mutating func playDealerStep() throws {
+        guard phase == .dealerTurn else { throw GameError.actionNotAllowed }
+
+        if dealerMustHit {
+            dealerHand.add(shoe.draw())
+        } else {
+            phase = .roundOver
+        }
+    }
+
     mutating func startNextRound() throws {
         guard phase == .roundOver else { throw GameError.actionNotAllowed }
 
@@ -74,6 +85,14 @@ struct BlackjackGame {
         if shoe.needsReshuffle {
             shoe = Shoe(deckCount: rules.deckCount)
         }
+    }
+
+    // Soft 17 is the one total that depends on the table's rules.
+    private var dealerMustHit: Bool {
+        if dealerHand.total == 17 && dealerHand.isSoft {
+            return rules.dealerHitsSoft17
+        }
+        return dealerHand.total < 17
     }
 
     // Bets come in whole chips of the table minimum, so a 3:2 payout is always whole dollars.

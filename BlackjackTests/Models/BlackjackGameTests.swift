@@ -142,6 +142,126 @@ struct BlackjackGameTests {
         }
     }
 
+    // MARK: Dealer's turn
+
+    @Test(arguments: [
+        (Rank.ten, Rank.seven),
+        (.ten, .nine),
+        (.king, .queen),
+        // Soft 17 and soft 18
+        (.ace, .six),
+        (.ace, .seven),
+    ])
+    func dealerStandsOnSeventeenOrMore(upCard: Rank, holeCard: Rank) throws {
+        var game = try makeGameOnDealersTurn(dealerCards: [upCard, holeCard])
+
+        try game.playDealerStep()
+
+        #expect(game.dealerHand.cards.count == 2)
+        #expect(game.phase == .roundOver)
+    }
+
+    @Test(arguments: [
+        (Rank.ten, Rank.six),
+        (.two, .three),
+        // Soft 16
+        (.ace, .five),
+    ])
+    func dealerDrawsOneCardPerStepOnSixteenOrLess(upCard: Rank, holeCard: Rank) throws {
+        var game = try makeGameOnDealersTurn(dealerCards: [upCard, holeCard, .four])
+
+        try game.playDealerStep()
+
+        #expect(game.dealerHand.cards.map(\.rank) == [upCard, holeCard, .four])
+        #expect(game.phase == .dealerTurn)
+    }
+
+    @Test func dealerKeepsDrawingUntilReachingSeventeen() throws {
+        // 2 + 3 + 4 + 5 + 3 = 17, so the nine stays in the shoe.
+        var game = try makeGameOnDealersTurn(dealerCards: [.two, .three, .four, .five, .three, .nine])
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.dealerHand.cards.map(\.rank) == [.two, .three, .four, .five, .three])
+        #expect(game.dealerHand.total == 17)
+        #expect(game.phase == .roundOver)
+    }
+
+    @Test func dealerStandsWhenAnAceCountedAsElevenReachesSeventeen() throws {
+        // 3 + 3 + A is a soft 17, so the nine stays in the shoe.
+        var game = try makeGameOnDealersTurn(dealerCards: [.three, .three, .ace, .nine])
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.dealerHand.cards.map(\.rank) == [.three, .three, .ace])
+        #expect(game.dealerHand.total == 17)
+    }
+
+    @Test func dealerKeepsDrawingWhenAnAceHasToDropBackToOne() throws {
+        // Soft 16, then the king makes it a hard 16, so the dealer must draw again.
+        var game = try makeGameOnDealersTurn(dealerCards: [.ace, .five, .king, .two])
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.dealerHand.cards.map(\.rank) == [.ace, .five, .king, .two])
+        #expect(game.dealerHand.total == 18)
+    }
+
+    @Test func dealerBustingEndsTheRound() throws {
+        var game = try makeGameOnDealersTurn(dealerCards: [.ten, .six, .king])
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.dealerHand.isBust)
+        #expect(game.phase == .roundOver)
+    }
+
+    @Test func dealerHitsSoftSeventeenWhenTheTableRuleIsOn() throws {
+        var game = try makeGameOnDealersTurn(
+            dealerCards: [.ace, .six, .four],
+            rules: TableRules(dealerHitsSoft17: true)
+        )
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.dealerHand.cards.map(\.rank) == [.ace, .six, .four])
+        #expect(game.dealerHand.total == 21)
+    }
+
+    @Test func dealerStandsOnHardSeventeenWhenTheTableRuleIsOn() throws {
+        var game = try makeGameOnDealersTurn(
+            dealerCards: [.ten, .seven, .four],
+            rules: TableRules(dealerHitsSoft17: true)
+        )
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.dealerHand.cards.map(\.rank) == [.ten, .seven])
+    }
+
+    @Test func dealerCannotPlayBeforeThePlayerFinishes() throws {
+        var game = makeGame(dealing: [.ten, .two, .nine, .three])
+
+        #expect(throws: GameError.actionNotAllowed) {
+            try game.playDealerStep()
+        }
+
+        try game.deal(bet: 10)
+
+        #expect(throws: GameError.actionNotAllowed) {
+            try game.playDealerStep()
+        }
+    }
+
+    @Test func dealerCannotPlayOnceTheRoundIsOver() throws {
+        var game = try makeGameOnDealersTurn(dealerCards: [.ten, .seven])
+        try game.playDealerStep()
+
+        #expect(throws: GameError.actionNotAllowed) {
+            try game.playDealerStep()
+        }
+    }
+
     // MARK: Between rounds
 
     @Test func cannotStartTheNextRoundMidRound() throws {
@@ -192,8 +312,23 @@ struct BlackjackGameTests {
     }
 
     /// Suits don't affect the game, so every stacked card is a spade.
-    private func makeGame(dealing ranks: [Rank]) -> BlackjackGame {
+    private func makeGame(dealing ranks: [Rank], rules: TableRules = TableRules()) -> BlackjackGame {
         let cards = ranks.map { Card(rank: $0, suit: .spades) }
-        return BlackjackGame(rules: TableRules(), shoe: Shoe(cards: cards))
+        return BlackjackGame(rules: rules, shoe: Shoe(cards: cards))
+    }
+
+    /// The player stands on 20. The first two `dealerCards` are the dealer's hand, the rest are drawn in order.
+    private func makeGameOnDealersTurn(dealerCards: [Rank], rules: TableRules = TableRules()) throws -> BlackjackGame {
+        let stack = [.king, dealerCards[0], .queen, dealerCards[1]] + dealerCards.dropFirst(2)
+        var game = makeGame(dealing: stack, rules: rules)
+        try game.deal(bet: 10)
+        try game.stand()
+        return game
+    }
+
+    private func playOutDealersTurn(_ game: inout BlackjackGame) throws {
+        while game.phase == .dealerTurn {
+            try game.playDealerStep()
+        }
     }
 }
