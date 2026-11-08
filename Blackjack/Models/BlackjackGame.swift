@@ -8,6 +8,10 @@ struct BlackjackGame {
         case betting, playerTurn, dealerTurn, roundOver
     }
 
+    enum Outcome {
+        case blackjack, win, push, lose
+    }
+
     let rules: TableRules
     private(set) var phase = Phase.betting
     private(set) var playerHand = Hand()
@@ -22,9 +26,21 @@ struct BlackjackGame {
 
     // Tests pass a stacked shoe to control exactly which cards are dealt.
     init(rules: TableRules, shoe: Shoe) {
+        precondition(rules.minimumBet.isMultiple(of: 2), "Minimum bet must be even so 3:2 pays whole dollars, got \(rules.minimumBet)")
+
         self.rules = rules
         self.shoe = shoe
         bankroll = rules.startingBankroll
+    }
+
+    // nil until the round is over. Worked out from the hands, so it can't disagree with them.
+    var outcome: Outcome? {
+        guard phase == .roundOver else { return nil }
+
+        if playerHand.isBust { return .lose }
+        if playerHand.isBlackjack { return dealerHand.isBlackjack ? .push : .blackjack }
+        if dealerHand.isBust || playerHand.total > dealerHand.total { return .win }
+        return playerHand.total == dealerHand.total ? .push : .lose
     }
 
     mutating func deal(bet: Int) throws {
@@ -42,7 +58,11 @@ struct BlackjackGame {
 
         // A dealer blackjack always has an ace or ten-card showing, so this
         // covers the dealer checking the hole card before the player acts.
-        phase = playerHand.isBlackjack || dealerHand.isBlackjack ? .roundOver : .playerTurn
+        if playerHand.isBlackjack || dealerHand.isBlackjack {
+            finishRound()
+        } else {
+            phase = .playerTurn
+        }
     }
 
     mutating func hit() throws {
@@ -51,7 +71,7 @@ struct BlackjackGame {
         playerHand.add(shoe.draw())
 
         if playerHand.isBust {
-            phase = .roundOver
+            finishRound()
         } else if playerHand.total == 21 {
             phase = .dealerTurn
         }
@@ -70,7 +90,7 @@ struct BlackjackGame {
         if dealerMustHit {
             dealerHand.add(shoe.draw())
         } else {
-            phase = .roundOver
+            finishRound()
         }
     }
 
@@ -84,6 +104,24 @@ struct BlackjackGame {
 
         if shoe.needsReshuffle {
             shoe = Shoe(deckCount: rules.deckCount)
+        }
+    }
+
+    private mutating func finishRound() {
+        phase = .roundOver
+
+        if let outcome {
+            bankroll += payout(for: outcome)
+        }
+    }
+
+    // What goes back to the bankroll. The bet came off when the cards were dealt.
+    private func payout(for outcome: Outcome) -> Int {
+        switch outcome {
+        case .blackjack: bet + bet * 3 / 2
+        case .win: bet * 2
+        case .push: bet
+        case .lose: 0
         }
     }
 

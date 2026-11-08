@@ -262,6 +262,120 @@ struct BlackjackGameTests {
         }
     }
 
+    // MARK: Payouts
+
+    @Test(arguments: [(10, 1_015), (50, 1_075), (100, 1_150)])
+    func blackjackPaysThreeToTwo(bet: Int, expectedBankroll: Int) throws {
+        var game = makeGame(dealing: [.ace, .five, .king, .nine])
+
+        try game.deal(bet: bet)
+
+        #expect(game.outcome == .blackjack)
+        #expect(game.bankroll == expectedBankroll)
+    }
+
+    @Test func bothBlackjacksPush() throws {
+        var game = makeGame(dealing: [.ace, .ace, .king, .king])
+
+        try game.deal(bet: 10)
+
+        #expect(game.outcome == .push)
+        #expect(game.bankroll == 1_000)
+    }
+
+    @Test func dealerBlackjackTakesTheBet() throws {
+        var game = makeGame(dealing: [.five, .ace, .nine, .king])
+
+        try game.deal(bet: 10)
+
+        #expect(game.outcome == .lose)
+        #expect(game.bankroll == 990)
+    }
+
+    @Test func bustingLosesTheBet() throws {
+        var game = makeGame(dealing: [.ten, .two, .nine, .three, .five])
+        try game.deal(bet: 10)
+
+        try game.hit()
+
+        #expect(game.outcome == .lose)
+        #expect(game.bankroll == 990)
+    }
+
+    @Test func dealerBustingPaysThePlayer() throws {
+        var game = try makeGameOnDealersTurn(dealerCards: [.ten, .six, .king])
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.outcome == .win)
+        #expect(game.bankroll == 1_010)
+    }
+
+    @Test(arguments: [
+        // 20 beats 18
+        ([Rank.king, .ten, .queen, .eight], BlackjackGame.Outcome.win, 1_010),
+        // 18 loses to 19
+        ([.king, .ten, .eight, .nine], .lose, 990),
+        // 18 ties 18
+        ([.king, .ten, .eight, .eight], .push, 1_000),
+        // Soft 18 ties 18
+        ([.ace, .ten, .seven, .eight], .push, 1_000),
+        // 20 loses to the dealer drawing to 21
+        ([.king, .ten, .queen, .five, .six], .lose, 990),
+    ])
+    func higherTotalWinsWhenNobodyBusts(ranks: [Rank], expectedOutcome: BlackjackGame.Outcome, expectedBankroll: Int) throws {
+        var game = makeGame(dealing: ranks)
+        try game.deal(bet: 10)
+        try game.stand()
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.outcome == expectedOutcome)
+        #expect(game.bankroll == expectedBankroll)
+    }
+
+    @Test func threeCardTwentyOnePaysEvenMoney() throws {
+        // 10 + 5 + 6 against the dealer's 18.
+        var game = makeGame(dealing: [.ten, .ten, .five, .eight, .six])
+        try game.deal(bet: 10)
+        try game.hit()
+
+        try playOutDealersTurn(&game)
+
+        #expect(game.outcome == .win)
+        #expect(game.bankroll == 1_010)
+    }
+
+    @Test func outcomeOnlyExistsOnceTheRoundIsOver() throws {
+        var game = makeGame(dealing: [.king, .ten, .queen, .eight, .two, .three, .four, .five])
+        #expect(game.outcome == nil)
+
+        try game.deal(bet: 10)
+        #expect(game.outcome == nil)
+
+        try game.stand()
+        #expect(game.outcome == nil)
+
+        try playOutDealersTurn(&game)
+        #expect(game.outcome == .win)
+
+        try game.startNextRound()
+        #expect(game.outcome == nil)
+    }
+
+    @Test func winningsCarryIntoTheNextRound() throws {
+        var game = makeGame(dealing: [.king, .ten, .queen, .eight, .two, .three, .four, .five])
+        try game.deal(bet: 10)
+        try game.stand()
+        try playOutDealersTurn(&game)
+
+        try game.startNextRound()
+        #expect(game.bankroll == 1_010)
+
+        try game.deal(bet: 20)
+        #expect(game.bankroll == 990)
+    }
+
     // MARK: Between rounds
 
     @Test func cannotStartTheNextRoundMidRound() throws {
