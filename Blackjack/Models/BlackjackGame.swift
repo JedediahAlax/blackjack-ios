@@ -134,7 +134,7 @@ struct BlackjackGame {
     }
 
     // Bets come in whole chips of the table minimum, so a 3:2 payout is always whole dollars.
-    private func isValid(bet: Int) -> Bool {
+    func isValid(bet: Int) -> Bool {
         bet >= rules.minimumBet && bet <= bankroll && bet.isMultiple(of: rules.minimumBet)
     }
 }
