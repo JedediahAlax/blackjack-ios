@@ -4,7 +4,8 @@ import SwiftUI
 struct BlackjackApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            GameView()
+                .preferredColorScheme(.dark)
         }
     }
 }
