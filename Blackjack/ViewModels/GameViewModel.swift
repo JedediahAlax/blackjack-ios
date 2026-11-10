@@ -47,6 +47,10 @@ final class GameViewModel {
         pendingBet = 0
     }
 
+    func rebuy() {
+        try? game.rebuy()
+    }
+
     // MARK: Playing
 
     var isPlayersTurn: Bool {

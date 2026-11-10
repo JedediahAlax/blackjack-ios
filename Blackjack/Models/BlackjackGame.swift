@@ -107,6 +107,17 @@ struct BlackjackGame {
         }
     }
 
+    // Too little left for even the minimum bet, so the player can start over.
+    var canRebuy: Bool {
+        phase == .betting && bankroll < rules.minimumBet
+    }
+
+    mutating func rebuy() throws {
+        guard canRebuy else { throw GameError.actionNotAllowed }
+
+        bankroll = rules.startingBankroll
+    }
+
     private mutating func finishRound() {
         phase = .roundOver
 

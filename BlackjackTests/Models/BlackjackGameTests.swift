@@ -425,6 +425,21 @@ struct BlackjackGameTests {
         #expect(game.dealerHand.cards.count == 2)
     }
 
+    @Test func rebuyIsOnlyAllowedOnceTheBankrollIsBelowTheMinimumBet() throws {
+        var game = makeGame(dealing: [.ten, .two, .nine, .three, .five], rules: TableRules(startingBankroll: 10))
+        #expect(throws: GameError.actionNotAllowed) {
+            try game.rebuy()
+        }
+
+        // Bust and lose the only $10.
+        try game.deal(bet: 10)
+        try game.hit()
+        try game.startNextRound()
+        try game.rebuy()
+
+        #expect(game.bankroll == 10)
+    }
+
     /// Suits don't affect the game, so every stacked card is a spade.
     private func makeGame(dealing ranks: [Rank], rules: TableRules = TableRules()) -> BlackjackGame {
         let cards = ranks.map { Card(rank: $0, suit: .spades) }

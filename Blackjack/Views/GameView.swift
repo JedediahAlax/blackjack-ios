@@ -62,7 +62,11 @@ struct GameView: View {
     private var controls: some View {
         switch viewModel.game.phase {
         case .betting:
-            bettingControls
+            if viewModel.game.canRebuy {
+                rebuyControls
+            } else {
+                bettingControls
+            }
         case .playerTurn:
             HStack(spacing: 12) {
                 actionButton("Hit", tint: gold) {
@@ -78,6 +82,17 @@ struct GameView: View {
         case .roundOver:
             actionButton("Next Hand", tint: gold) {
                 viewModel.nextRound()
+            }
+        }
+    }
+
+    private var rebuyControls: some View {
+        VStack(spacing: 14) {
+            Text("You're out of chips")
+                .font(.headline)
+
+            actionButton("Rebuy $\(viewModel.game.rules.startingBankroll.formatted())", tint: gold) {
+                viewModel.rebuy()
             }
         }
     }
